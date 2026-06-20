@@ -1302,7 +1302,7 @@ p {
    ========================================== */
 .business-info-section {
   padding: 0;
-  margin-top: -40px;
+  margin-top: 40px;
   position: relative;
   z-index: 2;
 }
@@ -1310,7 +1310,7 @@ p {
 .business-info-card {
   background: var(--surface);
   border-radius: var(--radius-xl);
-  padding: 40px 48px;
+  padding: 24px 32px;
   box-shadow: var(--shadow-lg);
   border: 1px solid var(--border-light);
   position: relative;
@@ -1330,15 +1330,15 @@ p {
 .business-info-header {
   display: flex;
   align-items: center;
-  gap: 20px;
-  margin-bottom: 32px;
-  padding-bottom: 24px;
+  gap: 16px;
+  margin-bottom: 20px;
+  padding-bottom: 16px;
   border-bottom: 1px solid var(--border-light);
 }
 
 .business-info-icon {
-  width: 56px;
-  height: 56px;
+  width: 48px;
+  height: 48px;
   border-radius: var(--radius-md);
   background: linear-gradient(135deg, var(--primary), var(--primary-dark));
   display: flex;
@@ -1350,23 +1350,23 @@ p {
 
 .business-info-label {
   display: block;
-  font-size: 0.78rem;
+  font-size: 0.75rem;
   font-weight: 700;
   color: var(--primary);
   letter-spacing: 1.5px;
   text-transform: uppercase;
-  margin-bottom: 4px;
+  margin-bottom: 2px;
 }
 
 .business-info-name {
-  font-size: clamp(1.3rem, 3vw, 1.75rem);
+  font-size: clamp(1.2rem, 2.5vw, 1.5rem);
   font-weight: 800;
   color: var(--primary-dark);
   line-height: 1.2;
 }
 
 .business-info-subtitle {
-  font-size: 0.88rem;
+  font-size: 0.85rem;
   color: var(--text-secondary);
   font-weight: 500;
   margin-top: 2px;
@@ -1374,15 +1374,15 @@ p {
 
 .business-info-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
-  gap: 24px;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 16px;
 }
 
 .business-info-item {
   display: flex;
   align-items: flex-start;
-  gap: 14px;
-  padding: 16px;
+  gap: 12px;
+  padding: 8px 12px;
   border-radius: var(--radius-md);
   transition: all var(--transition-fast);
 }
@@ -1392,8 +1392,8 @@ p {
 }
 
 .business-info-item-icon {
-  width: 44px;
-  height: 44px;
+  width: 36px;
+  height: 36px;
   border-radius: var(--radius-sm);
   background: rgba(0, 127, 120, 0.08);
   display: flex;
@@ -1412,20 +1412,20 @@ p {
 
 .info-item-label {
   display: block;
-  font-size: 0.72rem;
+  font-size: 0.7rem;
   font-weight: 700;
   color: var(--text-secondary);
   letter-spacing: 1px;
   text-transform: uppercase;
-  margin-bottom: 4px;
+  margin-bottom: 2px;
 }
 
 .info-item-value {
   display: block;
-  font-size: 1rem;
+  font-size: 0.95rem;
   font-weight: 600;
   color: var(--text-primary);
-  line-height: 1.5;
+  line-height: 1.4;
 }
 
 .info-item-value.mst-badge {
@@ -1433,9 +1433,9 @@ p {
   align-items: center;
   background: var(--primary-dark);
   color: #fff;
-  padding: 4px 16px;
+  padding: 3px 12px;
   border-radius: var(--radius-full);
-  font-size: 0.92rem;
+  font-size: 0.85rem;
   font-weight: 700;
   letter-spacing: 0.5px;
 }
@@ -1449,38 +1449,38 @@ a.info-item-value:hover {
 }
 
 .info-phone {
-  font-size: 1.15rem;
+  font-size: 1.05rem;
   font-weight: 700;
   color: var(--primary-dark);
 }
 
 .info-item-sub {
   display: block;
-  font-size: 0.8rem;
+  font-size: 0.75rem;
   color: var(--text-secondary);
   margin-top: 2px;
 }
 
 @media (max-width: 768px) {
   .business-info-section {
-    margin-top: -24px;
+    margin-top: 24px;
     padding: 0 0;
   }
 
   .business-info-card {
-    padding: 28px 20px;
+    padding: 20px 16px;
     border-radius: var(--radius-lg);
   }
 
   .business-info-header {
-    gap: 14px;
-    margin-bottom: 24px;
-    padding-bottom: 20px;
+    gap: 12px;
+    margin-bottom: 16px;
+    padding-bottom: 12px;
   }
 
   .business-info-icon {
-    width: 48px;
-    height: 48px;
+    width: 40px;
+    height: 40px;
   }
 
   .business-info-grid {
@@ -1489,7 +1489,7 @@ a.info-item-value:hover {
   }
 
   .business-info-item {
-    padding: 12px;
+    padding: 8px;
   }
 }
 
