@@ -1,5 +1,6 @@
 'use client';
 import { MapPin, Phone, Mail, Clock, MessageCircle, ArrowRight } from 'lucide-react';
+import { categories } from '@/data/categories';
 
 const FacebookIcon = () => (
   <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
@@ -14,27 +15,20 @@ const YoutubeIcon = () => (
   </svg>
 );
 
-const serviceLinks = [
-  { label: 'Cửa nhôm kính, vách kính', href: '/danh-muc/nhom-kinh' },
-  { label: 'Cửa sắt', href: '/danh-muc/cua-sat' },
-  { label: 'Mái tôn', href: '/danh-muc/mai-ton' },
-  { label: 'Nhà tiền chế', href: '/danh-muc/mai-ton' },
-  { label: 'Mái poly', href: '/danh-muc/mai-poly' },
-  { label: 'Hàng rào sắt', href: '/danh-muc/cua-sat' },
-  { label: 'Vách ngăn panel', href: '/danh-muc/nhom-kinh' },
-  { label: 'Inox & Cầu thang', href: '/danh-muc/cua-sat' },
-];
-
 const quickLinks = [
   { label: 'Trang chủ', href: '/' },
   { label: 'Giới thiệu', href: '/#about' },
   { label: 'Sản phẩm', href: '/#services' },
   { label: 'Quy trình', href: '/#process' },
   { label: 'Tin tức', href: '/#news' },
-  { label: 'Liên hệ', href: '/#contact' },
+  { label: 'Liên hệ', href: '#contact' },
 ];
 
 export default function Footer() {
+  const serviceLinks = categories.map((cat) => ({
+    label: cat.name,
+    href: `/danh-muc/${cat.id}`,
+  }));
   return (
     <footer className="footer">
       <div className="footer-main">

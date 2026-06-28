@@ -1,46 +1,17 @@
 'use client';
 import { useState } from 'react';
 import Link from 'next/link';
-import { ChevronRight, Home, Phone, ArrowLeft, X, ChevronLeft } from 'lucide-react';
+import { useRouter } from 'next/navigation';
+import { ChevronRight, Home, Phone, ArrowLeft, ChevronDown } from 'lucide-react';
 import TopBar from '@/components/TopBar';
 import Header from '@/components/Header';
 import Footer from '@/components/Footer';
 import FloatingButtons from '@/components/FloatingButtons';
+import QuoteForm from '@/components/QuoteForm';
 
 export default function CategoryPageClient({ category, allCategories }) {
-  const [lightboxOpen, setLightboxOpen] = useState(false);
-  const [lightboxIndex, setLightboxIndex] = useState(0);
-  const [isZoomed, setIsZoomed] = useState(false);
-
-  const openLightbox = (index) => {
-    setLightboxIndex(index);
-    setLightboxOpen(true);
-    setIsZoomed(false);
-    document.body.style.overflow = 'hidden';
-  };
-
-  const closeLightbox = () => {
-    setLightboxOpen(false);
-    document.body.style.overflow = '';
-  };
-
-  const nextImage = (e) => {
-    e.stopPropagation();
-    setLightboxIndex((prevIndex) => (prevIndex + 1) % category.items.length);
-    setIsZoomed(false);
-  };
-
-  const prevImage = (e) => {
-    e.stopPropagation();
-    setLightboxIndex((prevIndex) => (prevIndex - 1 + category.items.length) % category.items.length);
-    setIsZoomed(false);
-  };
-
-  const toggleZoom = (e) => {
-    e.stopPropagation();
-    setIsZoomed(!isZoomed);
-  };
-
+  const router = useRouter();
+  const [menuExpanded, setMenuExpanded] = useState(false);
   return (
     <>
       <TopBar />
@@ -74,17 +45,30 @@ export default function CategoryPageClient({ category, allCategories }) {
               {/* Sidebar */}
               <aside className="category-sidebar">
                 <div className="sidebar-card">
-                  <h3 className="sidebar-title">Danh mục sản phẩm</h3>
-                  <ul className="sidebar-menu">
+                  <h3 
+                    className="sidebar-title" 
+                    onClick={() => setMenuExpanded(!menuExpanded)}
+                    style={{ cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
+                  >
+                    <span>Danh mục sản phẩm</span>
+                    <ChevronDown 
+                      className="mobile-category-toggle-icon" 
+                      style={{ 
+                        transition: 'transform 0.3s ease',
+                        transform: menuExpanded ? 'rotate(180deg)' : 'rotate(0deg)'
+                      }} 
+                    />
+                  </h3>
+                  <ul className={`sidebar-menu ${menuExpanded ? 'expanded' : 'collapsed'}`}>
                     {allCategories.map((cat) => (
                       <li key={cat.id}>
                         <Link
                            href={`/danh-muc/${cat.id}`}
                            className={`sidebar-link ${cat.id === category.id ? 'active' : ''}`}
                         >
-                          <ChevronRight style={{ width: 16, height: 16 }} />
-                          {cat.name}
-                          <span className="sidebar-count">{cat.items.length}</span>
+                           <ChevronRight style={{ width: 16, height: 16 }} />
+                           {cat.name}
+                           <span className="sidebar-count">{cat.items.length}</span>
                         </Link>
                       </li>
                     ))}
@@ -97,10 +81,15 @@ export default function CategoryPageClient({ category, allCategories }) {
                   </div>
                   <h4>Bạn cần tư vấn?</h4>
                   <p>Liên hệ ngay để được báo giá miễn phí</p>
-                  <a href="tel:0909123456" className="btn btn-primary sidebar-cta-btn">
-                    <Phone style={{ width: 16, height: 16 }} />
-                    Gọi ngay
-                  </a>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginTop: '16px' }}>
+                    <a href="tel:0909123456" className="btn btn-primary sidebar-cta-btn" style={{ margin: 0 }}>
+                      <Phone style={{ width: 16, height: 16 }} />
+                      Gọi ngay
+                    </a>
+                    <a href="#contact" className="btn btn-outline sidebar-cta-btn-outline" style={{ margin: 0 }}>
+                      Nhận báo giá
+                    </a>
+                  </div>
                 </div>
               </aside>
 
@@ -115,22 +104,25 @@ export default function CategoryPageClient({ category, allCategories }) {
 
                 <div className="category-products-grid">
                   {category.items.map((item, index) => (
-                    <div
+                    <Link
+                      href={`/san-pham/${item.slug}`}
                       className="category-product-card"
                       key={index}
-                      onClick={() => openLightbox(index)}
-                      style={{ cursor: 'pointer' }}
                     >
                       <div className="category-product-image">
                         <img src={item.image} alt={item.title} />
                         <div className="category-product-overlay">
-                          <Link
-                            href="/#contact"
+                          <button
+                            type="button"
                             className="btn btn-primary category-product-btn"
-                            onClick={(e) => e.stopPropagation()}
+                            onClick={(e) => {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              router.push(`/san-pham/${item.slug}#contact`);
+                            }}
                           >
                             Nhận báo giá
-                          </Link>
+                          </button>
                         </div>
                       </div>
                       <div className="category-product-body">
@@ -140,7 +132,7 @@ export default function CategoryPageClient({ category, allCategories }) {
                           <span className="price-highlight">{item.price}</span>
                         </div>
                       </div>
-                    </div>
+                    </Link>
                   ))}
                 </div>
 
@@ -155,46 +147,13 @@ export default function CategoryPageClient({ category, allCategories }) {
             </div>
           </div>
         </section>
+        {/* Embedded Contact Form */}
+        <QuoteForm prefilledService={category.id} />
       </main>
       <Footer />
       <FloatingButtons />
-
-      {/* Lightbox Modal */}
-      {lightboxOpen && (
-        <div className="lightbox-modal" onClick={closeLightbox}>
-          <div className="lightbox-backdrop"></div>
-          
-          <button className="lightbox-btn lightbox-close" onClick={closeLightbox} aria-label="Đóng">
-            <X style={{ width: 28, height: 28 }} />
-          </button>
-          
-          <button className="lightbox-btn lightbox-prev" onClick={prevImage} aria-label="Ảnh trước">
-            <ChevronLeft style={{ width: 36, height: 36 }} />
-          </button>
-          
-          <button className="lightbox-btn lightbox-next" onClick={nextImage} aria-label="Ảnh sau">
-            <ChevronRight style={{ width: 36, height: 36 }} />
-          </button>
-
-          <div className="lightbox-content" onClick={(e) => e.stopPropagation()}>
-            <div className={`lightbox-image-wrapper ${isZoomed ? 'zoomed' : ''}`} onClick={toggleZoom}>
-              <img
-                src={category.items[lightboxIndex].image}
-                alt={category.items[lightboxIndex].title}
-                className="lightbox-image"
-              />
-            </div>
-            
-            <div className="lightbox-info">
-              <h3 className="lightbox-title">{category.items[lightboxIndex].title}</h3>
-              <p className="lightbox-price">{category.items[lightboxIndex].price}</p>
-              <div className="lightbox-counter">
-                {lightboxIndex + 1} / {category.items.length}
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
     </>
   );
 }
+
+

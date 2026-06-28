@@ -36,7 +36,11 @@ export default function Services() {
 
               <div className="products-grid">
                 {category.items.map((item, index) => (
-                  <Link href={`/danh-muc/${category.id}`} className="product-card" key={index}>
+                  <Link
+                    href={`/san-pham/${item.slug}`}
+                    className="product-card"
+                    key={index}
+                  >
                     <div className="product-image-wrapper">
                       <img src={item.image} alt={item.title} />
                     </div>

@@ -1,5 +1,5 @@
 'use client';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Send, Clock, ShieldCheck, BadgePercent, Phone } from 'lucide-react';
 import { ScrollRevealWrapper } from './ScrollReveal';
 
@@ -9,8 +9,56 @@ const benefits = [
   { icon: BadgePercent, title: 'Giá cạnh tranh', desc: 'Cam kết giá tốt nhất thị trường' },
 ];
 
-export default function QuoteForm() {
+export default function QuoteForm({ prefilledService = '', prefilledProduct = '' }) {
   const [submitted, setSubmitted] = useState(false);
+  const [service, setService] = useState('');
+  const [message, setMessage] = useState('');
+
+  useEffect(() => {
+    let initialService = prefilledService;
+    let initialProduct = prefilledProduct;
+
+    if (!initialService && typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      const serviceParam = params.get('service');
+      const productParam = params.get('product');
+      if (serviceParam) {
+        initialService = serviceParam;
+      }
+      if (productParam) {
+        initialProduct = productParam;
+      }
+    }
+
+    // Map specific sub-services based on product keywords
+    if (initialProduct) {
+      const productLower = initialProduct.toLowerCase();
+      if (productLower.includes('nhà tiền chế') || productLower.includes('nhà thép') || productLower.includes('mái tôn') || productLower.includes('lợp tôn')) {
+        initialService = 'maiton';
+      } else if (productLower.includes('poly') || productLower.includes('nhựa poly') || productLower.includes('lấy sáng')) {
+        initialService = 'maipoly';
+      } else if (productLower.includes('nhôm') || productLower.includes('kính') || productLower.includes('xingfa')) {
+        initialService = 'nhomkinh';
+      } else if (productLower.includes('sắt') || productLower.includes('cổng') || productLower.includes('hàng rào') || productLower.includes('cầu thang') || productLower.includes('lan can') || productLower.includes('khung bảo vệ') || productLower.includes('inox') || productLower.includes('không gỉ')) {
+        initialService = 'cuasat';
+      } else if (productLower.includes('chống thấm') || productLower.includes('sửa chữa')) {
+        initialService = 'suachuanha';
+      }
+    }
+
+    setService(initialService ? initialService.replace(/-/g, '') : '');
+    setMessage(initialProduct ? `Tôi cần tư vấn và nhận báo giá cho sản phẩm: ${initialProduct}` : '');
+  }, [prefilledService, prefilledProduct]);
+
+  useEffect(() => {
+    const handleSelectService = (e) => {
+      if (e.detail) {
+        setService(e.detail);
+      }
+    };
+    window.addEventListener('select-quote-service', handleSelectService);
+    return () => window.removeEventListener('select-quote-service', handleSelectService);
+  }, []);
 
   const handleSubmit = (e) => {
     e.preventDefault();
@@ -90,19 +138,21 @@ export default function QuoteForm() {
                   />
                 </div>
 
-                <div className="form-group">
+                 <div className="form-group">
                   <label htmlFor="service">Dịch vụ quan tâm *</label>
-                  <select id="service" className="form-control" required>
+                  <select
+                    id="service"
+                    className="form-control"
+                    value={service}
+                    onChange={(e) => setService(e.target.value)}
+                    required
+                  >
                     <option value="">-- Chọn dịch vụ --</option>
-                    <option value="nhomkinh">Thi công nhôm kính</option>
-                    <option value="cuasat">Cửa sắt – inox</option>
-                    <option value="nhatienche">Nhà tiền chế</option>
-                    <option value="maiton">Mái vòm – mái tôn</option>
-                    <option value="khungsat">Khung sắt bảo vệ</option>
-                    <option value="cauthang">Cầu thang – lan can</option>
-                    <option value="maipoly">Mái nhựa Poly</option>
-                    <option value="hangrao">Hàng rào</option>
-                    <option value="maihien">Mái hiên – mái xếp</option>
+                    <option value="nhomkinh">Cửa nhôm kính & Vách kính</option>
+                    <option value="maipoly">Mái Poly lấy sáng</option>
+                    <option value="maiton">Mái tôn & Nhà tiền chế</option>
+                    <option value="cuasat">Cửa sắt, Hàng rào & Lan can</option>
+                    <option value="suachuanha">Chống thấm, sửa chữa nhà</option>
                   </select>
                 </div>
 
@@ -113,6 +163,8 @@ export default function QuoteForm() {
                     className="form-control"
                     placeholder="Mô tả chi tiết yêu cầu công trình của bạn..."
                     rows={4}
+                    value={message}
+                    onChange={(e) => setMessage(e.target.value)}
                   ></textarea>
                 </div>
 
