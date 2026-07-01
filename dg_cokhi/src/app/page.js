@@ -6,7 +6,6 @@ import About from '@/components/About';
 import BusinessInfo from '@/components/BusinessInfo';
 import Services from '@/components/Services';
 import Process from '@/components/Process';
-import WhyChooseUs from '@/components/WhyChooseUs';
 import QuoteForm from '@/components/QuoteForm';
 import News from '@/components/News';
 import Partners from '@/components/Partners';
@@ -24,7 +23,6 @@ export default function Home() {
         <About />
         <Services />
         <Process />
-        <WhyChooseUs />
         <QuoteForm />
         <News />
         <Partners />

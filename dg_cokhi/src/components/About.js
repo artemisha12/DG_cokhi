@@ -1,15 +1,15 @@
 'use client';
-import { ShieldCheck, HardHat, Gem, Leaf, ArrowRight } from 'lucide-react';
+import { ArrowRight, CheckCircle2 } from 'lucide-react';
 import { ScrollRevealWrapper } from './ScrollReveal';
 
-const features = [
-  { icon: ShieldCheck, label: 'Thi Công Chắc Chắn' },
-  { icon: HardHat, label: 'An Toàn Kỹ Thuật' },
-  { icon: Gem, label: 'Thẩm Mỹ Tinh Gọn' },
-  { icon: Leaf, label: 'Bền Bỉ Lâu Dài' },
-];
-
 export default function About() {
+  const trustPoints = [
+    'Khảo sát thực tế, đo đạc & tư vấn tận nơi hoàn toàn miễn phí.',
+    'Báo giá minh bạch, tối ưu phương án thi công giúp tiết kiệm chi phí.',
+    'Thi công chắc chắn, đúng kỹ thuật, thợ cơ khí lành nghề.',
+    'Bảo hành kết cấu công trình dài hạn lên đến 5 năm.'
+  ];
+
   return (
     <section className="section about-section" id="about">
       <div className="container">
@@ -18,64 +18,62 @@ export default function About() {
           <ScrollRevealWrapper direction="left">
             <div className="about-content">
               <div className="section-header-redesign">
-                <span className="subtitle-orange">GIỚI THIỆU VỀ</span>
+                <span className="subtitle-orange">Giới thiệu & Uy tín</span>
                 <div className="title-row">
                   <h2 className="main-title-blue">ĐỨC GIÁP</h2>
                   <div className="title-line-striped"></div>
                 </div>
               </div>
+              
               <p className="about-text">
-                Đức Giáp là đơn vị chuyên thiết kế, gia công và thi công các hạng mục cơ khí – nhôm kính
-                cho nhà ở, công trình dân dụng và công trình kinh doanh. Chúng tôi thực hiện đa dạng
-                hạng mục như cửa nhôm kính, cửa sắt – inox, lan can, cầu thang, mái che, nhà tiền chế
-                và các sản phẩm cơ khí theo yêu cầu.
+                Đức Giáp là đơn vị chuyên thiết kế, gia công và thi công trọn gói các hạng mục cơ khí – nhôm kính 
+                cho nhà ở và các công trình dân dụng tại Quảng Trị. Chúng tôi chế tạo cửa nhôm kính Xingfa, 
+                cửa sắt, lan can, cầu thang, mái che, và nhà thép tiền chế với cam kết bền bỉ và thẩm mỹ cao nhất.
               </p>
 
-              <p className="about-text">
-                Với kinh nghiệm thực tế trong nhiều công trình, Đức Giáp luôn chú trọng khảo sát kỹ,
-                tư vấn đúng nhu cầu, báo giá minh bạch và thi công chắc chắn. Mỗi sản phẩm được hoàn thiện
-                với tiêu chí bền bỉ, an toàn, thẩm mỹ và phù hợp với ngân sách của khách hàng.
-              </p>
-
-              <div className="about-features">
-                {features.map((f) => {
-                  const Icon = f.icon;
-                  return (
-                    <div className="about-feature" key={f.label}>
-                      <div className="feature-icon">
-                        <Icon style={{ width: 20, height: 20 }} />
-                      </div>
-                      <span className="feature-label">{f.label}</span>
-                    </div>
-                  );
-                })}
+              {/* Asymmetric Stats Layout */}
+              <div className="about-stats-panel">
+                <div className="about-stat-item">
+                  <span className="about-stat-num">10+</span>
+                  <span className="about-stat-desc">Năm kinh nghiệm thi công</span>
+                </div>
+                <div className="about-stat-item">
+                  <span className="about-stat-num">500+</span>
+                  <span className="about-stat-desc">Hạng mục đã hoàn thành</span>
+                </div>
               </div>
 
-              <a href="#services" className="btn btn-primary">
+              {/* Clean Trust List */}
+              <div className="about-trust-list">
+                {trustPoints.map((point, index) => (
+                  <div className="about-trust-item" key={index}>
+                    <CheckCircle2 className="trust-item-icon" />
+                    <span>{point}</span>
+                  </div>
+                ))}
+              </div>
+
+              <a href="#services" className="btn btn-primary" style={{ marginTop: '8px' }}>
                 Xem Dịch Vụ
                 <ArrowRight style={{ width: 18, height: 18 }} />
               </a>
             </div>
           </ScrollRevealWrapper>
 
-          {/* Image Assets (Right Column) */}
+          {/* Image Showcase (Right Column - Asymmetric Layout) */}
           <ScrollRevealWrapper direction="right">
-            <div className="about-images">
-              <div className="about-img-main">
+            <div className="about-showcase">
+              <div className="showcase-image-large">
                 <img
                   src="/images/about-main.jpg"
-                  alt="Đội ngũ thi công Đức Giáp Cơ Khí"
+                  alt="Thi công nhôm kính Đức Giáp"
                 />
               </div>
-              <div className="about-img-secondary">
+              <div className="showcase-image-small">
                 <img
                   src="/images/about-secondary.jpg"
-                  alt="Sản phẩm nhôm kính Đức Giáp"
+                  alt="Sản phẩm cơ khí Đức Giáp"
                 />
-              </div>
-              <div className="about-exp-badge">
-                <span className="exp-number">10+</span>
-                <span className="exp-text">Năm</span>
               </div>
             </div>
           </ScrollRevealWrapper>

@@ -1,5 +1,5 @@
 'use client';
-import { Shield, Building, ArrowRight } from 'lucide-react';
+import { ArrowRight } from 'lucide-react';
 
 export default function Hero() {
   return (
@@ -29,23 +29,6 @@ export default function Hero() {
               Xem dịch vụ
               <ArrowRight style={{ width: 18, height: 18 }} />
             </a>
-          </div>
-          <div className="hero-trust-metrics">
-            <div className="trust-metric-item">
-              <Shield style={{ width: 22, height: 22 }} />
-              <div className="metric-info">
-                <strong>10+</strong>
-                <span>năm kinh nghiệm</span>
-              </div>
-            </div>
-            <div className="trust-metric-divider"></div>
-            <div className="trust-metric-item">
-              <Building style={{ width: 22, height: 22 }} />
-              <div className="metric-info">
-                <strong>500+</strong>
-                <span>công trình</span>
-              </div>
-            </div>
           </div>
         </div>
       </div>

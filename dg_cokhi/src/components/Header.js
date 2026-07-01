@@ -1,6 +1,6 @@
 'use client';
 import { useState, useEffect } from 'react';
-import { ChevronDown, Menu, X } from 'lucide-react';
+import { ChevronDown, Menu, X, Phone } from 'lucide-react';
 import { categories } from '@/data/categories';
 
 export default function Header() {
@@ -70,8 +70,9 @@ export default function Header() {
   };
 
   return (
-    <header className={`header ${scrolled ? 'scrolled' : ''}`} id="home">
-      <div className="container header-inner">
+    <>
+      <header className={`header ${scrolled ? 'scrolled' : ''}`} id="home">
+        <div className="container header-inner">
         <a href="/" className="logo">
           <img src="/images/logo.png" alt="Đức Giáp Cơ Khí Nhôm Kính" />
           <div className="logo-text">
@@ -145,9 +146,27 @@ export default function Header() {
           <span></span>
         </button>
       </div>
+    </header>
 
-      {/* Mobile Menu */}
-      <div className={`mobile-menu ${mobileOpen ? 'open' : ''}`}>
+    {/* Mobile Menu Backdrop */}
+    <div className={`mobile-menu-backdrop ${mobileOpen ? 'open' : ''}`} onClick={handleNavClick}></div>
+
+    {/* Mobile Menu */}
+    <div className={`mobile-menu ${mobileOpen ? 'open' : ''}`}>
+      <div className="mobile-menu-header">
+        <div className="logo" style={{ cursor: 'default' }}>
+          <img src="/images/logo.png" alt="Đức Giáp" style={{ height: 38 }} />
+          <div className="logo-text">
+            <span className="brand-name" style={{ fontSize: '1.1rem', color: '#fff' }}>ĐỨC GIÁP</span>
+            <span className="brand-tagline" style={{ fontSize: '0.62rem', color: 'rgba(255,255,255,0.6)' }}>CƠ KHÍ & NHÔM KÍNH</span>
+          </div>
+        </div>
+        <button className="mobile-menu-close" onClick={handleNavClick} aria-label="Đóng menu">
+          <X style={{ width: 20, height: 20, color: '#fff' }} />
+        </button>
+      </div>
+
+      <div className="mobile-menu-links">
         {navLinks.map((link) => (
           <div key={link.label}>
             {link.dropdown ? (
@@ -220,10 +239,12 @@ export default function Header() {
             )}
           </div>
         ))}
-        <a href="#contact" className="btn btn-primary" onClick={handleNavClick}>
-          Nhận báo giá
-        </a>
       </div>
-    </header>
+      <a href="tel:0839652962" className="btn btn-primary mobile-menu-call-btn" onClick={handleNavClick}>
+        <Phone style={{ width: 18, height: 18 }} />
+        Gọi ngay: 0839.652.962
+      </a>
+    </div>
+    </>
   );
 }
