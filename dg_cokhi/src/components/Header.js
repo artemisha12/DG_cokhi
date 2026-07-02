@@ -7,6 +7,7 @@ export default function Header() {
   const [scrolled, setScrolled] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
   const [activeMobileDropdown, setActiveMobileDropdown] = useState(null);
+  const [activeSection, setActiveSection] = useState('home');
 
   const navLinks = [
     { label: 'Trang chủ', href: '/' },
@@ -29,6 +30,7 @@ export default function Header() {
       ],
     },
     { label: 'Quy trình', href: '/#process' },
+    { label: 'Dự án', href: '/#projects' },
     { label: 'Tin tức', href: '/#news' },
     { label: 'Liên hệ', href: '#contact' },
   ];
@@ -37,6 +39,31 @@ export default function Header() {
     const onScroll = () => setScrolled(window.scrollY > 20);
     window.addEventListener('scroll', onScroll);
     return () => window.removeEventListener('scroll', onScroll);
+  }, []);
+
+  useEffect(() => {
+    const sections = ['home', 'about', 'services', 'process', 'news', 'contact'];
+    
+    const observerOptions = {
+      root: null,
+      rootMargin: '-30% 0px -55% 0px',
+      threshold: 0,
+    };
+
+    const observer = new IntersectionObserver((entries) => {
+      entries.forEach((entry) => {
+        if (entry.isIntersecting) {
+          setActiveSection(entry.target.id);
+        }
+      });
+    }, observerOptions);
+
+    sections.forEach((id) => {
+      const el = document.getElementById(id);
+      if (el) observer.observe(el);
+    });
+
+    return () => observer.disconnect();
   }, []);
 
   useEffect(() => {
@@ -69,6 +96,11 @@ export default function Header() {
     setActiveMobileDropdown(null);
   };
 
+  const getSectionIdFromHref = (href) => {
+    if (href === '/' || href === '/#home') return 'home';
+    return href.replace('/#', '').replace('#', '');
+  };
+
   return (
     <>
       <header className={`header ${scrolled ? 'scrolled' : ''}`} id="home">
@@ -85,7 +117,7 @@ export default function Header() {
           {navLinks.map((link) =>
             link.dropdown ? (
               <div className={`nav-dropdown ${link.isMegamenu ? 'nav-megamenu' : ''}`} key={link.label}>
-                <a href={link.href} className="nav-link nav-dropdown-trigger">
+                <a href={link.href} className={`nav-link nav-dropdown-trigger ${activeSection === getSectionIdFromHref(link.href) ? 'active' : ''}`}>
                   {link.label}
                   <ChevronDown />
                 </a>
@@ -125,7 +157,7 @@ export default function Header() {
                 )}
               </div>
             ) : (
-              <a href={link.href} className="nav-link" key={link.label}>
+              <a href={link.href} className={`nav-link ${activeSection === getSectionIdFromHref(link.href) ? 'active' : ''}`} key={link.label}>
                 {link.label}
               </a>
             )

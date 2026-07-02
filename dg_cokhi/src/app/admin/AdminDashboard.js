@@ -1,5 +1,6 @@
 'use client';
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { categories } from '@/data/categories';
 
 /* ── Mock Data ── */
@@ -41,10 +42,26 @@ const SERVICE_COLORS = {
 };
 
 const STATUS_CONFIG = {
-  new:       { label: 'Mới',         color: '#0ea5e9', bg: '#f0f9ff', dot: '#38bdf8' },
-  contacted: { label: 'Đã liên hệ', color: '#d97706', bg: '#fffbeb', dot: '#fbbf24' },
-  done:      { label: 'Hoàn thành', color: '#16a34a', bg: '#f0fdf4', dot: '#4ade80' },
+  new:       { label: 'Chưa liên hệ', color: '#0ea5e9', bg: '#f0f9ff', dot: '#38bdf8' },
+  contacted: { label: 'Đang xử lý',   color: '#d97706', bg: '#fffbeb', dot: '#fbbf24' },
+  done:      { label: 'Hoàn thành',   color: '#16a34a', bg: '#f0fdf4', dot: '#4ade80' },
+  cancelled: { label: 'Đã huỷ',      color: '#dc2626', bg: '#fff1f2', dot: '#f87171' },
 };
+
+/* Thứ tự tuần tự: new → contacted → done (hoặc bất kỳ → cancelled) */
+const STATUS_ORDER = ['new', 'contacted', 'done'];
+
+function getNextStatuses(currentStatus) {
+  if (currentStatus === 'done' || currentStatus === 'cancelled') return [];
+  const idx = STATUS_ORDER.indexOf(currentStatus);
+  const nexts = [];
+  if (idx !== -1 && idx + 1 < STATUS_ORDER.length) {
+    nexts.push(STATUS_ORDER[idx + 1]);
+  }
+  // Luôn có thể huỷ (trừ khi đã done/cancelled)
+  nexts.push('cancelled');
+  return nexts;
+}
 
 /* ── Helpers ── */
 function formatTime(iso) {
@@ -55,6 +72,27 @@ function formatTime(iso) {
 
 function getInitials(name) {
   return name.trim().split(' ').slice(-2).map(w => w[0]).join('').toUpperCase();
+}
+
+function isOverdue(iso) {
+  return (Date.now() - new Date(iso).getTime()) > 24 * 60 * 60 * 1000;
+}
+
+function getTimeAgo(iso) {
+  const diff = Date.now() - new Date(iso).getTime();
+  const h = Math.floor(diff / 3600000);
+  if (h < 1) return 'Vừa gửi';
+  if (h < 24) return `${h} giờ trước`;
+  const d = Math.floor(h / 24);
+  return `${d} ngày trước`;
+}
+
+function isToday(iso) {
+  const d = new Date(iso);
+  const now = new Date();
+  return d.getDate() === now.getDate() &&
+    d.getMonth() === now.getMonth() &&
+    d.getFullYear() === now.getFullYear();
 }
 
 /* ── Icon components ── */
@@ -96,28 +134,48 @@ const NAV = [
   { id: 'dashboard',   label: 'Tổng quan',       icon: <IconDashboard /> },
   { id: 'submissions', label: 'Yêu cầu báo giá', icon: <IconClipboard /> },
   { id: 'products',    label: 'Sản phẩm',         icon: <IconLayers />    },
-  { id: 'settings',    label: 'Cài đặt website',  icon: <IconSettings />  },
+  { id: 'settings',    label: 'Cài đặt',           icon: <IconSettings />  },
 ];
 
 /* ═══════════════════════════════════════════════
    MAIN DASHBOARD
 ═══════════════════════════════════════════════ */
 export default function AdminDashboard() {
-  const [activeTab, setActiveTab]         = useState('dashboard');
-  const [mobileSidebarOpen, setMobileOpen] = useState(false);
-  const [submissions, setSubmissions]     = useState(MOCK_SUBMISSIONS);
-  const [products, setProducts]           = useState(() =>
+  const router = useRouter();
+  const [authorized, setAuthorized] = useState(false);
+
+  useEffect(() => {
+    const isLoggedIn = localStorage.getItem('dg_admin_logged');
+    if (isLoggedIn === 'true') {
+      setAuthorized(true);
+    } else {
+      router.push('/admin/login');
+    }
+  }, [router]);
+
+  const handleLogout = () => {
+    localStorage.removeItem('dg_admin_logged');
+    router.push('/admin/login');
+  };
+
+  const [activeTab, setActiveTab]           = useState('dashboard');
+  const [mobileSidebarOpen, setMobileOpen]  = useState(false);
+  const [submissions, setSubmissions]       = useState(
+    MOCK_SUBMISSIONS.map(s => ({ ...s, note: '' }))
+  );
+  const [products, setProducts]             = useState(() =>
     categories.flatMap(cat =>
       cat.items.map(item => ({ ...item, category: cat.id, categoryName: cat.name, active: true }))
     )
   );
-  const [filterStatus, setFilterStatus]   = useState('all');
-  const [filterService, setFilterService] = useState('all');
-  const [filterCat, setFilterCat]         = useState('all');
-  const [searchQuery, setSearchQuery]     = useState('');
-  const [selectedSub, setSelectedSub]     = useState(null);
-  const [editProduct, setEditProduct]     = useState(null);
+  const [filterStatus, setFilterStatus]     = useState('all');
+  const [filterService, setFilterService]   = useState('all');
+  const [filterCat, setFilterCat]           = useState('all');
+  const [searchQuery, setSearchQuery]       = useState('');
+  const [selectedSub, setSelectedSub]       = useState(null);
+  const [editProduct, setEditProduct]       = useState(null);
   const [showAddProduct, setShowAddProduct] = useState(false);
+  const [noteInput, setNoteInput]           = useState('');
   const [siteSettings, setSiteSettings] = useState({
     companyName: 'CÔNG TY TNHH SẢN XUẤT VÀ THƯƠNG MẠI ĐỨC GIÁP',
     taxCode: '0909.123.456',
@@ -131,12 +189,13 @@ export default function AdminDashboard() {
 
   /* ── Stats ── */
   const stats = useMemo(() => ({
-    total:    submissions.length,
-    new:      submissions.filter(s => s.status === 'new').length,
-    contacted:submissions.filter(s => s.status === 'contacted').length,
-    done:     submissions.filter(s => s.status === 'done').length,
-    products: products.length,
-    active:   products.filter(p => p.active).length,
+    total:     submissions.length,
+    new:       submissions.filter(s => s.status === 'new').length,
+    contacted: submissions.filter(s => s.status === 'contacted').length,
+    done:      submissions.filter(s => s.status === 'done').length,
+    cancelled: submissions.filter(s => s.status === 'cancelled').length,
+    products:  products.length,
+    active:    products.filter(p => p.active).length,
   }), [submissions, products]);
 
   /* ── Filtered ── */
@@ -159,6 +218,23 @@ export default function AdminDashboard() {
     setSelectedSub(prev => prev?.id === id ? { ...prev, status } : prev);
   };
 
+  const saveNote = (id, note) => {
+    setSubmissions(prev => prev.map(s => s.id === id ? { ...s, note } : s));
+    setSelectedSub(prev => prev?.id === id ? { ...prev, note } : prev);
+  };
+
+  const moveProduct = (slug, dir) => {
+    setProducts(prev => {
+      const idx = prev.findIndex(p => p.slug === slug);
+      if (idx === -1) return prev;
+      const next = idx + dir;
+      if (next < 0 || next >= prev.length) return prev;
+      const arr = [...prev];
+      [arr[idx], arr[next]] = [arr[next], arr[idx]];
+      return arr;
+    });
+  };
+
   const handleTabChange = (tab) => {
     setActiveTab(tab);
     setSearchQuery('');
@@ -166,9 +242,31 @@ export default function AdminDashboard() {
     setMobileOpen(false);
   };
 
+  /* ── Derived: today's work lists ── */
+  const todayNew      = submissions.filter(s => s.status === 'new' && !isOverdue(s.time));
+  const overdueNew    = submissions.filter(s => s.status === 'new' && isOverdue(s.time));
+  const inProgress    = submissions.filter(s => s.status === 'contacted');
+  const todayReceived = submissions
+    .filter(s => isToday(s.time))
+    .sort((a, b) => new Date(b.time) - new Date(a.time));
+
   /* ─────────────────────────────────────────────
      RENDER
   ───────────────────────────────────────────── */
+  if (!authorized) {
+    return (
+      <div style={{ display: 'flex', width: '100vw', height: '100vh', alignItems: 'center', justifyContent: 'center', background: 'var(--dg-bg)', color: 'var(--dg-t1)', fontFamily: 'var(--dg-font)' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '12px' }}>
+          <div className="dg-login-spinner" style={{ width: '28px', height: '28px', border: '3px solid var(--dg-teal)', borderTopColor: 'transparent', borderRadius: '50%', animation: 'dg-spin 0.8s linear infinite' }}></div>
+          <span style={{ fontSize: '13px', fontWeight: '500', opacity: 0.8 }}>Đang xác thực quyền truy cập...</span>
+        </div>
+        <style dangerouslySetInnerHTML={{__html: `
+          @keyframes dg-spin { to { transform: rotate(360deg); } }
+        `}} />
+      </div>
+    );
+  }
+
   return (
     <div className="dg-admin">
 
@@ -214,7 +312,7 @@ export default function AdminDashboard() {
         </nav>
 
         {/* Footer */}
-        <div className="dg-sidebar-footer">
+        <div className="dg-sidebar-footer" style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
           <a href="/" target="_blank" className="dg-footer-link">
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <path d="M15 3h6v6"/>
@@ -223,6 +321,12 @@ export default function AdminDashboard() {
             </svg>
             Xem trang web
           </a>
+          <button onClick={handleLogout} className="dg-footer-link" style={{ background: 'none', border: 'none', width: '100%', textAlign: 'left', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/>
+            </svg>
+            Đăng xuất
+          </button>
         </div>
       </aside>
 
@@ -262,57 +366,188 @@ export default function AdminDashboard() {
           <div className="dg-page">
             {/* Stat cards */}
             <div className="dg-stats-grid">
-              <StatCard label="Yêu cầu mới" value={stats.new}       accent="#0284c7" sub="Chờ liên hệ hôm nay"
-                icon={
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
-                    <line x1="9" y1="10" x2="15" y2="10"/>
-                    <line x1="12" y1="7" x2="12" y2="13"/>
-                  </svg>
-                }
+              <StatCard label="Chưa liên hệ" value={stats.new} accent="#0284c7" sub="Yêu cầu mới"
+                icon={<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/><line x1="9" y1="10" x2="15" y2="10"/><line x1="12" y1="7" x2="12" y2="13"/></svg>}
               />
-              <StatCard label="Đã liên hệ" value={stats.contacted}  accent="#c2410c" sub="Đang xử lý"
-                icon={
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.8 19.8 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.8 19.8 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.8 12.8 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.8 12.8 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/>
-                    <polyline points="16 2 20 6 16 10" />
-                    <line x1="20" y1="6" x2="13" y2="6" />
-                  </svg>
-                }
+              <StatCard label="Đang xử lý" value={stats.contacted} accent="#c2410c" sub="Đã liên hệ, chờ kết quả"
+                icon={<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.8 19.8 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.8 19.8 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.8 12.8 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.8 12.8 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg>}
               />
-              <StatCard label="Hoàn thành" value={stats.done}       accent="#15803d" sub="Đã xử lý xong"
-                icon={
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10z"/>
-                    <path d="m9 12 2 2 4-4"/>
-                  </svg>
-                }
+              <StatCard label="Hoàn thành" value={stats.done} accent="#15803d" sub="Khách đã đồng ý"
+                icon={<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><path d="m9 12 2 2 4-4"/></svg>}
               />
-              <StatCard label="Sản phẩm" value={stats.active}       accent="#007F78" sub={`/${stats.products} tổng cộng`}
-                icon={
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
-                    <rect x="2" y="7" width="20" height="14" rx="2"/>
-                    <path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2"/>
-                    <line x1="12" y1="12" x2="12" y2="17"/>
-                    <line x1="9" y1="14.5" x2="15" y2="14.5"/>
-                  </svg>
-                }
+              <StatCard label="Sản phẩm" value={stats.active} accent="#007F78" sub={`đang hiển thị / ${stats.products} tổng`}
+                icon={<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2"/></svg>}
               />
             </div>
 
-            {/* Recent section */}
-            <div className="dg-section-header">
-              <h2 className="dg-section-title">Yêu cầu mới nhất</h2>
+            {/* ── Việc cần làm hôm nay ── */}
+            <div className="dg-section-header" style={{ marginTop: '8px' }}>
+              <h2 className="dg-section-title">Cần liên hệ ngay</h2>
               <button className="dg-link-btn" onClick={() => handleTabChange('submissions')}>Xem tất cả →</button>
             </div>
-            <div className="dg-card">
-              <SubmissionRows
-                submissions={submissions.slice(0, 6)}
-                onSelect={setSelectedSub}
-                onStatusChange={changeStatus}
-                compact
-              />
+
+            <div className="dg-today-grid">
+              {/* Quá hạn */}
+              {overdueNew.length > 0 && (
+                <div className="dg-today-group overdue">
+                  <div className="dg-today-group-header">
+                    <span className="dg-today-dot" style={{ background: '#ef4444' }} />
+                    <span>Chờ quá 1 ngày — gọi ngay hôm nay</span>
+                    <span className="dg-today-count">{overdueNew.length}</span>
+                  </div>
+                  {overdueNew.map(s => (
+                    <div key={s.id} className="dg-today-item overdue" onClick={() => { setSelectedSub(s); setNoteInput(s.note || ''); }}>
+                      <div className="dg-today-info">
+                        <p className="dg-today-name">{s.name}</p>
+                        <a href={`tel:${s.phone.replace(/\s/g,'')}`} className="dg-today-phone" onClick={e => e.stopPropagation()}>
+                          <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.69 13a19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 3.6 2.22h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L7.91 9.91a16 16 0 0 0 6.08 6.08l.91-.91a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7a2 2 0 0 1 1.72 2.02z"/></svg>
+                          {s.phone}
+                        </a>
+                        <p className="dg-today-service">{SERVICE_LABELS[s.service] || s.service}</p>
+                      </div>
+                      <div className="dg-today-right">
+                        <span className="dg-today-age">{getTimeAgo(s.time)}</span>
+                        <a href={`tel:${s.phone.replace(/\s/g,'')}`} className="dg-today-call" onClick={e => e.stopPropagation()}>
+                          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.69 13a19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 3.6 2.22h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L7.91 9.91a16 16 0 0 0 6.08 6.08l.91-.91a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7a2 2 0 0 1 1.72 2.02z"/></svg>
+                          Gọi
+                        </a>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* Mới hôm nay */}
+              {todayNew.length > 0 && (
+                <div className="dg-today-group new">
+                  <div className="dg-today-group-header">
+                    <span className="dg-today-dot" style={{ background: '#38bdf8' }} />
+                    <span>Mới gửi — chưa liên hệ</span>
+                    <span className="dg-today-count">{todayNew.length}</span>
+                  </div>
+                  {todayNew.map(s => (
+                    <div key={s.id} className="dg-today-item" onClick={() => { setSelectedSub(s); setNoteInput(s.note || ''); }}>
+                      <div className="dg-today-info">
+                        <p className="dg-today-name">{s.name}</p>
+                        <a href={`tel:${s.phone.replace(/\s/g,'')}`} className="dg-today-phone" onClick={e => e.stopPropagation()}>
+                          <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.69 13a19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 3.6 2.22h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L7.91 9.91a16 16 0 0 0 6.08 6.08l.91-.91a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7a2 2 0 0 1 1.72 2.02z"/></svg>
+                          {s.phone}
+                        </a>
+                        <p className="dg-today-service">{SERVICE_LABELS[s.service] || s.service}</p>
+                      </div>
+                      <div className="dg-today-right">
+                        <span className="dg-today-age">{getTimeAgo(s.time)}</span>
+                        <a href={`tel:${s.phone.replace(/\s/g,'')}`} className="dg-today-call" onClick={e => e.stopPropagation()}>
+                          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.69 13a19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 3.6 2.22h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L7.91 9.91a16 16 0 0 0 6.08 6.08l.91-.91a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7a2 2 0 0 1 1.72 2.02z"/></svg>
+                          Gọi
+                        </a>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* Đang theo dõi */}
+              {inProgress.length > 0 && (
+                <div className="dg-today-group progress">
+                  <div className="dg-today-group-header">
+                    <span className="dg-today-dot" style={{ background: '#f59e0b' }} />
+                    <span>Đã liên hệ — chờ xác nhận</span>
+                    <span className="dg-today-count">{inProgress.length}</span>
+                  </div>
+                  {inProgress.map(s => (
+                    <div key={s.id} className="dg-today-item" onClick={() => { setSelectedSub(s); setNoteInput(s.note || ''); }}>
+                      <div className="dg-today-info">
+                        <p className="dg-today-name">{s.name}</p>
+                        <a href={`tel:${s.phone.replace(/\s/g,'')}`} className="dg-today-phone" onClick={e => e.stopPropagation()}>
+                          <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.69 13a19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 3.6 2.22h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L7.91 9.91a16 16 0 0 0 6.08 6.08l.91-.91a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7a2 2 0 0 1 1.72 2.02z"/></svg>
+                          {s.phone}
+                        </a>
+                        <p className="dg-today-service">{s.note ? `📝 ${s.note}` : (SERVICE_LABELS[s.service] || s.service)}</p>
+                      </div>
+                      <div className="dg-today-right">
+                        <span className="dg-today-age">{getTimeAgo(s.time)}</span>
+                        <a href={`tel:${s.phone.replace(/\s/g,'')}`} className="dg-today-call" onClick={e => e.stopPropagation()}>
+                          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.69 13a19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 3.6 2.22h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L7.91 9.91a16 16 0 0 0 6.08 6.08l.91-.91a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7a2 2 0 0 1 1.72 2.02z"/></svg>
+                          Gọi
+                        </a>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {overdueNew.length === 0 && todayNew.length === 0 && inProgress.length === 0 && (
+                <div className="dg-today-empty">
+                  <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#4ade80" strokeWidth="1.8"><circle cx="12" cy="12" r="10"/><path d="m9 12 2 2 4-4"/></svg>
+                  <p>Hôm nay không có việc gì tồn đọ — tuyệt vời! 🎉</p>
+                </div>
+              )}
             </div>
+
+            {/* ── Form gửi hôm nay ── */}
+            <div className="dg-section-header" style={{ marginTop: '20px' }}>
+              <h2 className="dg-section-title">
+                Form nhận hôm nay
+                {todayReceived.length > 0 && (
+                  <span className="dg-section-badge">{todayReceived.length}</span>
+                )}
+              </h2>
+              <button className="dg-link-btn" onClick={() => handleTabChange('submissions')}>Xem tất cả →</button>
+            </div>
+
+            {todayReceived.length === 0 ? (
+              <div className="dg-today-empty" style={{ marginTop: 0 }}>
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="var(--dg-t4)" strokeWidth="1.8"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>
+                <p>Chưa nhận được yêu cầu nào hôm nay</p>
+              </div>
+            ) : (
+              <div className="dg-received-list">
+                {todayReceived.map(s => (
+                  <div
+                    key={s.id}
+                    className="dg-received-item"
+                    onClick={() => { setSelectedSub(s); setNoteInput(s.note || ''); }}
+                  >
+                    {/* Left: time + status */}
+                    <div className="dg-received-time">
+                      <span className="dg-received-clock">
+                        {new Date(s.time).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })}
+                      </span>
+                      <StatusDot status={s.status} />
+                    </div>
+
+                    {/* Center: info */}
+                    <div className="dg-received-info">
+                      <div className="dg-received-row1">
+                        <span className="dg-received-name">{s.name}</span>
+                        <ServiceTag service={s.service} />
+                      </div>
+                      <div className="dg-received-row2">
+                        <a
+                          href={`tel:${s.phone.replace(/\s/g,'')}`}
+                          className="dg-received-phone"
+                          onClick={e => e.stopPropagation()}
+                        >
+                          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.69 13a19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 3.6 2.22h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L7.91 9.91a16 16 0 0 0 6.08 6.08l.91-.91a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7a2 2 0 0 1 1.72 2.02z"/></svg>
+                          {s.phone}
+                        </a>
+                        <span className="dg-received-msg">{s.message}</span>
+                      </div>
+                    </div>
+
+                    {/* Right: call button */}
+                    <a
+                      href={`tel:${s.phone.replace(/\s/g,'')}`}
+                      className="dg-received-call"
+                      onClick={e => e.stopPropagation()}
+                    >
+                      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.69 13a19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 3.6 2.22h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L7.91 9.91a16 16 0 0 0 6.08 6.08l.91-.91a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7a2 2 0 0 1 1.72 2.02z"/></svg>
+                    </a>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         )}
 
@@ -330,6 +565,7 @@ export default function AdminDashboard() {
                 <option value="new">Mới</option>
                 <option value="contacted">Đã liên hệ</option>
                 <option value="done">Hoàn thành</option>
+                <option value="cancelled">Đã huỷ</option>
               </select>
               <select className="dg-select" value={filterService} onChange={e => setFilterService(e.target.value)}>
                 <option value="all">Tất cả dịch vụ</option>
@@ -340,11 +576,11 @@ export default function AdminDashboard() {
             <div className="dg-split">
               {/* List panel */}
               <div className="dg-list-panel">
-                <p className="dg-count-label">{filteredSubs.length} yêu cầu</p>
+                <p className="dg-count-label">{filteredSubs.length} kết quả</p>
                 <div className="dg-card">
                   <SubmissionRows
                     submissions={filteredSubs}
-                    onSelect={setSelectedSub}
+                    onSelect={s => { setSelectedSub(s); setNoteInput(s.note || ''); }}
                     onStatusChange={changeStatus}
                     selectedId={selectedSub?.id}
                   />
@@ -376,14 +612,18 @@ export default function AdminDashboard() {
             <p className="dg-count-label">{filteredProds.length} sản phẩm</p>
 
             <div className="dg-product-grid">
-              {filteredProds.map(product => (
+              {filteredProds.map((product, idx) => (
                 <ProductCard
                   key={product.slug}
                   product={product}
+                  isFirst={idx === 0}
+                  isLast={idx === filteredProds.length - 1}
+                  onMoveUp={() => moveProduct(product.slug, -1)}
+                  onMoveDown={() => moveProduct(product.slug, 1)}
                   onEdit={() => setEditProduct(product)}
                   onToggle={() => setProducts(prev => prev.map(p => p.slug === product.slug ? { ...p, active: !p.active } : p))}
                   onDelete={() => {
-                    if (window.confirm('Xoá sản phẩm này?'))
+                    if (window.confirm(`Xóa sản phẩm "${product.title}"? Hành động này không thể hoàn tác.`))
                       setProducts(prev => prev.filter(p => p.slug !== product.slug));
                   }}
                 />
@@ -433,11 +673,11 @@ export default function AdminDashboard() {
           <div className="dg-page">
             <div className="dg-card" style={{ padding: '24px', maxWidth: '640px' }}>
               <div style={{ marginBottom: '20px', borderBottom: '1px solid var(--dg-border)', paddingBottom: '12px' }}>
-                <h2 style={{ fontSize: '15px', fontWeight: '800', color: 'var(--dg-t1)', margin: 0 }}>Cấu hình thông tin Website</h2>
-                <p style={{ fontSize: '11px', color: 'var(--dg-t3)', marginTop: '4px' }}>Cập nhật các thông tin liên hệ và giới thiệu chung hiển thị ngoài trang Landing Page</p>
+                <h2 style={{ fontSize: '15px', fontWeight: '800', color: 'var(--dg-t1)', margin: 0 }}>Thông tin hiển thị ngoài website</h2>
+                <p style={{ fontSize: '11px', color: 'var(--dg-t3)', marginTop: '4px' }}>Các thông tin dưới đây sẽ hiển thị trực tiếp trên trang web cho khách hàng xem.</p>
               </div>
 
-              <form onSubmit={e => { e.preventDefault(); alert('Cập nhật cấu hình website thành công!'); }} className="dg-modal-body" style={{ padding: 0, gap: '16px' }}>
+              <form onSubmit={e => { e.preventDefault(); alert('Cập nhật thành công! Thông tin mới sẽ hiển thị trên trang web.'); }} className="dg-modal-body" style={{ padding: 0, gap: '16px' }}>
                 <div className="dg-field">
                   <label>Tên doanh nghiệp / Xưởng</label>
                   <input value={siteSettings.companyName} onChange={e => setSiteSettings({...siteSettings, companyName: e.target.value})} />
@@ -472,7 +712,7 @@ export default function AdminDashboard() {
 
                 <div className="dg-field">
                   <label>Giờ làm việc</label>
-                  <input value={siteSettings.workingHours} onChange={e => setSiteSettings({...siteSettings, workingHours: e.target.value})} />
+                  <input placeholder="VD: Thứ 2 – Chủ nhật: 7:00 – 18:00" value={siteSettings.workingHours} onChange={e => setSiteSettings({...siteSettings, workingHours: e.target.value})} />
                 </div>
 
                 <div className="dg-field">
@@ -481,7 +721,7 @@ export default function AdminDashboard() {
                 </div>
 
                 <div style={{ display: 'flex', justifyContent: 'flex-end', borderTop: '1px solid var(--dg-border)', paddingTop: '16px', marginTop: '8px' }}>
-                  <button type="submit" className="dg-btn-save">Lưu cấu hình</button>
+                  <button type="submit" className="dg-btn-save">Lưu thay đổi</button>
                 </div>
               </form>
             </div>
@@ -492,27 +732,30 @@ export default function AdminDashboard() {
       {/* ── Detail Modal Overlay ── */}
       {selectedSub && (
         <div className="dg-modal-overlay" onClick={() => setSelectedSub(null)}>
-          <div className="dg-modal" onClick={e => e.stopPropagation()}>
+          <div className="dg-modal" onClick={e => e.stopPropagation()} key={selectedSub.id}>
             <div className="dg-modal-head">
-              <span className="dg-modal-title">Chi tiết yêu cầu</span>
+              <span className="dg-modal-title">Thông tin yêu cầu</span>
               <button className="dg-close-btn" onClick={() => setSelectedSub(null)}>
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
               </button>
             </div>
 
             <div className="dg-modal-body" style={{ padding: '20px 24px 24px' }}>
-              {/* Customer info */}
+              {/* Customer info + quick call */}
               <div className="dg-detail-customer" style={{ padding: '0 0 16px 0' }}>
-                <div>
+                <div style={{ flex: 1 }}>
                   <p className="dg-detail-name">{selectedSub.name}</p>
-                  <p className="dg-detail-phone">{selectedSub.phone}</p>
+                  <a href={`tel:${selectedSub.phone.replace(/\s/g,'')}`} className="dg-detail-phone" style={{ textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: '5px' }}>
+                    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.69 13a19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 3.6 2.22h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L7.91 9.91a16 16 0 0 0 6.08 6.08l.91-.91a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7a2 2 0 0 1 1.72 2.02z"/></svg>
+                    {selectedSub.phone}
+                  </a>
                 </div>
               </div>
 
               {/* Meta */}
               <div className="dg-detail-meta" style={{ margin: '14px 0 0 0' }}>
                 <div className="dg-meta-row">
-                  <span className="dg-meta-key">Thời gian</span>
+                  <span className="dg-meta-key">Thời gian gửi</span>
                   <span className="dg-meta-val">{formatTime(selectedSub.time)}</span>
                 </div>
                 <div className="dg-meta-row">
@@ -527,28 +770,108 @@ export default function AdminDashboard() {
 
               {/* Message */}
               <div className="dg-detail-message" style={{ margin: '14px 0 0 0' }}>
-                <p className="dg-meta-key" style={{ marginBottom: '8px' }}>Nội dung</p>
+                <p className="dg-meta-key" style={{ marginBottom: '8px' }}>Nội dung yêu cầu</p>
                 <p>{selectedSub.message}</p>
+              </div>
+
+              {/* Note */}
+              <div style={{ margin: '12px 0 0 0' }}>
+                <p className="dg-meta-key" style={{ marginBottom: '6px' }}>📝 Ghi chú nội bộ (chỉ bạn thấy)</p>
+                <textarea
+                  className="dg-note-input"
+                  placeholder="VD: Đã gọi, hẹn xuống khảo sát thứ 5. Khách muốn nhôm Xingfa..."
+                  value={noteInput}
+                  onChange={e => setNoteInput(e.target.value)}
+                  onBlur={() => saveNote(selectedSub.id, noteInput)}
+                  rows={2}
+                />
+                {noteInput !== (selectedSub.note || '') && (
+                  <button
+                    className="dg-note-save-btn"
+                    onClick={() => saveNote(selectedSub.id, noteInput)}
+                  >
+                    Xác nhận lưu ghi chú
+                  </button>
+                )}
               </div>
 
               {/* Status change */}
               <div className="dg-status-change" style={{ padding: '14px 0 0 0', marginTop: '14px', borderTop: '1px solid var(--dg-border2)' }}>
-                <p className="dg-meta-key" style={{ marginBottom: '8px' }}>Cập nhật trạng thái</p>
-                <div className="dg-status-btns">
-                  {Object.entries(STATUS_CONFIG).map(([key, cfg]) => (
-                    <button
-                      key={key}
-                      className={`dg-status-btn ${selectedSub.status === key ? 'active' : ''}`}
-                      style={{ '--sc': cfg.color, '--sb': cfg.bg }}
-                      onClick={() => changeStatus(selectedSub.id, key)}
-                    >
-                      {cfg.label}
-                    </button>
-                  ))}
+                <p className="dg-meta-key" style={{ marginBottom: '4px' }}>Chuyển trạng thái</p>
+                {/* Timeline hiển thị bước hiện tại */}
+                <div className="dg-status-timeline">
+                  {STATUS_ORDER.map((key, idx) => {
+                    const cfg = STATUS_CONFIG[key];
+                    const currentIdx = STATUS_ORDER.indexOf(selectedSub.status);
+                    const isCancelled = selectedSub.status === 'cancelled';
+                    const isDone = key === selectedSub.status;
+                    const isPast = !isCancelled && currentIdx > idx;
+                    const isFuture = isCancelled ? true : currentIdx < idx;
+                    return (
+                      <div key={key} className="dg-timeline-step">
+                        <div
+                          className={`dg-timeline-dot ${
+                            isDone ? 'current' : isPast ? 'past' : 'future'
+                          }`}
+                          style={isDone || isPast ? { '--sc': cfg.color } : {}}
+                        >
+                          {isPast ? (
+                            <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><path d="m5 12 5 5L20 7"/></svg>
+                          ) : null}
+                        </div>
+                        <span className={`dg-timeline-label ${isDone ? 'current' : isPast ? 'past' : 'future'}`}>
+                          {cfg.label}
+                        </span>
+                        {idx < STATUS_ORDER.length - 1 && (
+                          <div className={`dg-timeline-line ${isPast ? 'past' : 'future'}`} />
+                        )}
+                      </div>
+                    );
+                  })}
+                  {/* Nút huỷ riêng */}
+                  {selectedSub.status === 'cancelled' && (
+                    <div className="dg-timeline-step">
+                      <div className="dg-timeline-dot current" style={{ '--sc': STATUS_CONFIG.cancelled.color, background: STATUS_CONFIG.cancelled.bg, borderColor: STATUS_CONFIG.cancelled.color }}>
+                        <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="#dc2626" strokeWidth="3"><path d="M18 6 6 18M6 6l12 12"/></svg>
+                      </div>
+                      <span className="dg-timeline-label current" style={{ color: STATUS_CONFIG.cancelled.color }}>Đã huỷ</span>
+                    </div>
+                  )}
                 </div>
+
+                {/* Nút hành động tuần tự */}
+                {(() => {
+                  const nextStatuses = getNextStatuses(selectedSub.status);
+                  if (nextStatuses.length === 0) return (
+                    <p style={{ fontSize: '11px', color: 'var(--dg-t3)', marginTop: '10px', fontStyle: 'italic' }}>
+                      {selectedSub.status === 'done'
+                        ? '✓ Yêu cầu đã hoàn thành. Không có bước tiếp theo.'
+                        : '✗ Yêu cầu này đã bị huỷ.'}
+                    </p>
+                  );
+                  return (
+                    <div className="dg-status-btns" style={{ marginTop: '10px' }}>
+                      {nextStatuses.map(key => {
+                        const cfg = STATUS_CONFIG[key];
+                        const isCancelBtn = key === 'cancelled';
+                        return (
+                          <button
+                            key={key}
+                            className={`dg-status-btn${isCancelBtn ? ' cancel-btn' : ' next-btn'}`}
+                            style={{ '--sc': cfg.color, '--sb': cfg.bg }}
+                            onClick={() => changeStatus(selectedSub.id, key)}
+                          >
+                            {isCancelBtn ? 'Huỷ yêu cầu này' : `Chuyển sang: ${cfg.label}`}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  );
+                })()}
+
                 <a href={`tel:${selectedSub.phone.replace(/\s/g, '')}`} className="dg-call-btn" style={{ marginTop: '10px' }}>
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.69 13a19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 3.6 2.22h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L7.91 9.91a16 16 0 0 0 6.08 6.08l.91-.91a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7a2 2 0 0 1 1.72 2.02z"/></svg>
-                  Gọi {selectedSub.phone}
+                  📞 Gọi ngay — {selectedSub.phone}
                 </a>
               </div>
             </div>
@@ -609,7 +932,7 @@ function StatusDot({ status }) {
 ═══════════════════════════════════════════════ */
 function SubmissionRows({ submissions, onSelect, onStatusChange, selectedId, compact }) {
   if (submissions.length === 0) {
-    return <div className="dg-table-empty">Không có yêu cầu nào</div>;
+    return <div className="dg-table-empty">Chưa có yêu cầu nào. Yêu cầu mới sẽ xuất hiện tại đây.</div>;
   }
   return (
     <table className="dg-table">
@@ -620,21 +943,27 @@ function SubmissionRows({ submissions, onSelect, onStatusChange, selectedId, com
           {!compact && <th>Nội dung</th>}
           <th>Thời gian</th>
           <th>Trạng thái</th>
-          <th>Thao tác</th>
         </tr>
       </thead>
       <tbody>
         {submissions.map(s => (
           <tr
             key={s.id}
-            className={`dg-tr ${selectedId === s.id ? 'selected' : ''} ${s.status === 'new' ? 'is-new' : ''}`}
+            className={`dg-tr ${selectedId === s.id ? 'selected' : ''} ${s.status === 'new' && isOverdue(s.time) ? 'is-overdue' : s.status === 'new' ? 'is-new' : ''} ${s.status === 'cancelled' ? 'is-cancelled' : ''}`}
             onClick={() => onSelect(s)}
           >
             <td>
               <div className="dg-cell-person">
                 <div>
-                  <p className="dg-cell-name">{s.name}</p>
-                  <p className="dg-cell-phone">{s.phone}</p>
+                  <p className="dg-cell-name">
+                    {s.status === 'new' && isOverdue(s.time) && <span className="dg-overdue-badge" title="Chờ quá 24h">!</span>}
+                    {s.name}
+                  </p>
+                  <a href={`tel:${s.phone.replace(/\s/g,'')}`} className="dg-cell-phone dg-phone-link" onClick={e => e.stopPropagation()}>
+                    <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.69 13a19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 3.6 2.22h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L7.91 9.91a16 16 0 0 0 6.08 6.08l.91-.91a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7a2 2 0 0 1 1.72 2.02z"/></svg>
+                    {s.phone}
+                  </a>
+                  {s.note && <p className="dg-cell-note" title={s.note}>📝 {s.note}</p>}
                 </div>
               </div>
             </td>
@@ -642,17 +971,6 @@ function SubmissionRows({ submissions, onSelect, onStatusChange, selectedId, com
             {!compact && <td className="dg-cell-msg">{s.message}</td>}
             <td className="dg-cell-time">{formatTime(s.time)}</td>
             <td><StatusDot status={s.status} /></td>
-            <td onClick={e => e.stopPropagation()}>
-              <select
-                className="dg-select sm"
-                value={s.status}
-                onChange={e => onStatusChange(s.id, e.target.value)}
-              >
-                {Object.entries(STATUS_CONFIG).map(([k, v]) => (
-                  <option key={k} value={k}>{v.label}</option>
-                ))}
-              </select>
-            </td>
           </tr>
         ))}
       </tbody>
@@ -663,10 +981,19 @@ function SubmissionRows({ submissions, onSelect, onStatusChange, selectedId, com
 /* ═══════════════════════════════════════════════
    PRODUCT CARD
 ═══════════════════════════════════════════════ */
-function ProductCard({ product, onEdit, onToggle, onDelete }) {
+function ProductCard({ product, onEdit, onToggle, onDelete, onMoveUp, onMoveDown, isFirst, isLast }) {
   return (
     <div className={`dg-prod-card ${!product.active ? 'hidden-prod' : ''}`}>
       {product.active && <div className="dg-prod-strip" />}
+      {/* Move buttons */}
+      <div className="dg-prod-order-btns">
+        <button className="dg-prod-order-btn" onClick={onMoveUp} disabled={isFirst} title="Lên trên">
+          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M18 15l-6-6-6 6"/></svg>
+        </button>
+        <button className="dg-prod-order-btn" onClick={onMoveDown} disabled={isLast} title="Xuống dưới">
+          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M6 9l6 6 6-6"/></svg>
+        </button>
+      </div>
       <div className="dg-prod-img">
         <img src={product.image} alt={product.title} loading="lazy" />
         <div className="dg-prod-overlay">
@@ -679,7 +1006,7 @@ function ProductCard({ product, onEdit, onToggle, onDelete }) {
             Xoá
           </button>
         </div>
-        {!product.active && <span className="dg-prod-hidden-tag">Đã ẩn</span>}
+        {!product.active && <span className="dg-prod-hidden-tag">Ẩn khỏi web</span>}
       </div>
       <div className="dg-prod-body">
         <p className="dg-prod-cat">{product.categoryName}</p>
@@ -704,7 +1031,7 @@ function ProductCard({ product, onEdit, onToggle, onDelete }) {
 
         <div className="dg-prod-footer" style={{ marginTop: '12px' }}>
           <span className="dg-prod-price">{product.price}</span>
-          <label className="dg-toggle" title={product.active ? 'Ẩn' : 'Hiện'}>
+          <label className="dg-toggle" title={product.active ? 'Ẩn sản phẩm khỏi website' : 'Hiển thị sản phẩm trên website'}>
             <input type="checkbox" checked={product.active} onChange={onToggle} />
             <span className="dg-toggle-track"><span className="dg-toggle-thumb" /></span>
           </label>
@@ -759,7 +1086,7 @@ function ProductModal({ title, product, onClose, onSave }) {
         <div className="dg-modal-head">
           <div>
             <h3 className="dg-modal-title">{title}</h3>
-            <p className="dg-modal-sub">{product ? `Đang sửa: ${product.title}` : 'Điền thông tin sản phẩm mới'}</p>
+            <p className="dg-modal-sub">{product ? `Đang sửa: ${product.title}` : 'Nhập thông tin sản phẩm mới bên dưới.'}</p>
           </div>
           <button className="dg-close-btn" onClick={onClose}>
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
@@ -783,7 +1110,7 @@ function ProductModal({ title, product, onClose, onSave }) {
             </div>
           </div>
           <div className="dg-field">
-            <label>URL Hình ảnh</label>
+            <label>Link hình ảnh</label>
             <input value={form.image} onChange={e => set('image', e.target.value)} placeholder="/images/ten-anh.jpg" />
           </div>
           <div className="dg-field">
@@ -792,7 +1119,7 @@ function ProductModal({ title, product, onClose, onSave }) {
           </div>
 
           <div className="dg-field">
-            <label>Thông số kỹ thuật chi tiết</label>
+            <label>Thông số kỹ thuật <span style={{ fontSize: '10px', fontWeight: '400', color: 'var(--dg-t3)' }}>(tùy chọn)</span></label>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '6px' }}>
               {specs.map((spec, index) => (
                 <div key={index} style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
@@ -850,8 +1177,8 @@ function ProductModal({ title, product, onClose, onSave }) {
           </div>
 
           <div className="dg-modal-footer">
-            <button type="button" className="dg-btn-cancel" onClick={onClose}>Huỷ</button>
-            <button type="submit" className="dg-btn-save">Lưu sản phẩm</button>
+            <button type="button" className="dg-btn-cancel" onClick={onClose}>Hủy bỏ</button>
+            <button type="submit" className="dg-btn-save">{product ? 'Lưu thay đổi' : 'Thêm sản phẩm'}</button>
           </div>
         </form>
       </div>

@@ -5,7 +5,9 @@ import Hero from '@/components/Hero';
 import About from '@/components/About';
 import BusinessInfo from '@/components/BusinessInfo';
 import Services from '@/components/Services';
+import WhyChooseUs from '@/components/WhyChooseUs';
 import Process from '@/components/Process';
+import Projects from '@/components/Projects';
 import QuoteForm from '@/components/QuoteForm';
 import News from '@/components/News';
 import Partners from '@/components/Partners';
@@ -22,7 +24,9 @@ export default function Home() {
         <BusinessInfo />
         <About />
         <Services />
+        <WhyChooseUs />
         <Process />
+        <Projects />
         <QuoteForm />
         <News />
         <Partners />

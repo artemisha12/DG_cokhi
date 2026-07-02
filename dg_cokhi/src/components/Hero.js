@@ -3,7 +3,7 @@ import { ArrowRight } from 'lucide-react';
 
 export default function Hero() {
   return (
-    <section className="hero">
+    <section className="hero" id="home">
       <div className="hero-bg-pattern">
         <div className="hero-grid"></div>
       </div>
